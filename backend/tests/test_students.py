@@ -1,30 +1,40 @@
-import os
-import tempfile
-import shutil
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-# Fixture to provide a TestClient with isolated SQLite DB
+from backend.app.main import app
+from backend.app.database import Base, get_db
+
+# Isolated in-memory SQLite database for testing
+SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
+
+test_engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
 @pytest.fixture(scope="function")
 def client():
-    # Temporary directory for DB file
-    temp_dir = tempfile.mkdtemp()
-    db_path = os.path.join(temp_dir, "test_student.db")
-    os.environ["STUDENT_DB"] = f"sqlite:///{db_path.replace('\\\', '/') }"
+    # Ensure fresh schema for each test run
+    Base.metadata.create_all(bind=test_engine)
 
-    # Import the app after env var is set so it uses the test DB
-    from backend.app.main import app
-    from backend.app.database import Base, engine
-    # Ensure tables exist
-    Base.metadata.create_all(bind=engine)
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
 
+    app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as c:
         yield c
 
-    # Cleanup
-    engine.dispose()
-    shutil.rmtree(temp_dir)
-    del os.environ["STUDENT_DB"]
+    Base.metadata.drop_all(bind=test_engine)
+    app.dependency_overrides.clear()
 
 def test_health_check(client):
     response = client.get("/health")

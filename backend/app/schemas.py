@@ -12,12 +12,10 @@ class StudentBase(BaseModel):
     address: Optional[str] = None
 
     @model_validator(mode='after')
-    def at_least_one_contact(cls, values):
-        email = values.email
-        phone = values.phone
-        if not email and not phone:
+    def at_least_one_contact(self):
+        if not self.email and not self.phone:
             raise ValueError('At least one of email or phone must be provided')
-        return values
+        return self
 
 class StudentCreate(StudentBase):
     pass
@@ -30,12 +28,11 @@ class StudentUpdate(BaseModel):
     address: Optional[str] = None
 
     @model_validator(mode='after')
-    def at_least_one_contact(cls, values):
-        email = values.email
-        phone = values.phone
-        if not email and not phone:
-            raise ValueError('At least one of email or phone must be provided')
-        return values
+    def at_least_one_contact(self):
+        if 'email' in self.model_fields_set and 'phone' in self.model_fields_set:
+            if not self.email and not self.phone:
+                raise ValueError('At least one of email or phone must be provided')
+        return self
 
 class StudentOut(StudentBase):
     id: int

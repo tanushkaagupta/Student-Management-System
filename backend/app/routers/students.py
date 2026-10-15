@@ -48,7 +48,7 @@ def update_student(student_id: str, student_update: schemas.StudentUpdate, db: S
     student = db.query(models.Student).filter(models.Student.student_id == student_id).first()
     if not student:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
-    update_data = student_update.dict(exclude_unset=True)
+    update_data = student_update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         setattr(student, key, value)
     db.commit()
